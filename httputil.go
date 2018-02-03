@@ -82,7 +82,6 @@ func addPrefix(prefix string, h http.Handler) http.Handler {
 		r2.URL = new(url.URL)
 		*r2.URL = *r.URL
 		r2.URL.Path = prefix + r.URL.Path
-		fmt.Println(r2.URL.Path)
 		h.ServeHTTP(w, r2)
 	})
 }

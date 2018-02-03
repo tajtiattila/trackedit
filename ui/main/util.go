@@ -1,5 +1,12 @@
 package main
 
+import (
+	"html"
+	"strings"
+
+	"github.com/gopherjs/gopherjs/js"
+)
+
 // decodeJSON decodes json and returns the javascript object
 // it panics if json is invalid
 func decodeJSON(json string) *js.Object {
@@ -30,16 +37,17 @@ func (d *Document) GetElementByID(id string) *js.Object {
 }
 
 func jsglobal(path string) *js.Object {
+	println(path)
 	o := js.Global
 	for path != "" {
-		i := strings.IndexRune(path, ".")
+		i := strings.IndexRune(path, '.')
 		var n string
 		if i == -1 {
-			n, part = part, ""
+			n, path = path, ""
 		} else {
-			n, part = part[:i], part[i+1:]
+			n, path = path[:i], path[i+1:]
 		}
-		o = js.Get(n)
+		o = o.Get(n)
 	}
 	return o
 }

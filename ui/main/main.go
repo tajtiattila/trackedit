@@ -1,16 +1,31 @@
 package main
 
-import "github.com/gopherjs/gopherjs/js"
+import (
+	"github.com/gopherjs/gopherjs/js"
+	"github.com/gopherjs/jquery"
+	"github.com/tajtiattila/trackedit/gmap"
+)
+
+var mapui *js.Object
 
 func main() {
-	// Create the Google Map using our element and options defined above
-	jsglobal("google.maps.Map").New(
-		doc.GetElementByID("map"),
-		js.M{
-			"minZoom":      3,
-			"scaleControl": true,
-			"styles":       decodeJSON(mapStyles),
+	jq := jquery.NewJQuery()
+	jq.Ready(func() {
+		// Create the Google Map using our element and options defined above
+		mapui = gmap.New(
+			doc.GetElementByID("map"),
+			js.M{
+				"minZoom":      3,
+				"scaleControl": true,
+				"styles":       decodeJSON(mapStyles),
+			})
+		mapui.Call("fitBounds", js.M{
+			"north": 48,
+			"south": 46,
+			"west":  18,
+			"east":  20,
 		})
+	})
 }
 
 // How you would like to style the map.
