@@ -15,12 +15,18 @@ func main() {
 	flag.StringVar(&ui, "ui", filepath.Join(modulePath(), "ui"), "ui directory")
 	flag.Parse()
 
+	if flag.NArg() != 1 {
+		log.Fatal("need exactly 1 track file argument")
+	}
+	trk := loadTrack(flag.Arg(0))
+
 	td := struct {
 		GoogleMapsAPIKey string
 	}{
 		GoogleMapsAPIKey: os.Getenv("GOOGLEMAPS_APIKEY"),
 	}
 	http.Handle("/", http.FileServer(&templateDir{ui, td}))
+	http.Handle("/api/track", serveTrack(trk))
 
 	verify(serveGopherJS(54321, stripGoSrcPath(ui), "main"))
 

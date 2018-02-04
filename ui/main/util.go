@@ -35,3 +35,9 @@ func (d *Document) CreateElement(name string, attr js.M, content ...string) *js.
 func (d *Document) GetElementByID(id string) *js.Object {
 	return d.Call("getElementById", id)
 }
+
+func removeChildren(el *js.Object) {
+	for el.Call("hasChildNodes").Bool() {
+		el.Call("removeChild", el.Get("firstChild"))
+	}
+}
