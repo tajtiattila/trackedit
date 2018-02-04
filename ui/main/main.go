@@ -11,6 +11,7 @@ var mapui *js.Object
 func main() {
 	jq := jquery.NewJQuery()
 	jq.Ready(func() {
+
 		// Create the Google Map using our element and options defined above
 		mapui = gmap.New(
 			doc.GetElementByID("map"),
@@ -25,6 +26,16 @@ func main() {
 			"west":  18,
 			"east":  20,
 		})
+
+		SetupHSplitter(
+			doc.GetElementByID("sidebarcontainer"),
+			doc.GetElementByID("separator"),
+			doc.GetElementByID("map"),
+			func() {
+				// google.maps.event.trigger(mapui, 'resize')
+				js.Global.Get("google").Get("maps").Get("event").Call("trigger", mapui, "resize")
+			})
+
 	})
 }
 

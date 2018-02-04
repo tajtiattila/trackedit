@@ -35,19 +35,3 @@ func (d *Document) CreateElement(name string, attr js.M, content ...string) *js.
 func (d *Document) GetElementByID(id string) *js.Object {
 	return d.Call("getElementById", id)
 }
-
-func jsglobal(path string) *js.Object {
-	println(path)
-	o := js.Global
-	for path != "" {
-		i := strings.IndexRune(path, '.')
-		var n string
-		if i == -1 {
-			n, path = path, ""
-		} else {
-			n, path = path[:i], path[i+1:]
-		}
-		o = o.Get(n)
-	}
-	return o
-}
