@@ -6,41 +6,46 @@ import (
 	"github.com/gopherjs/gopherjs/js"
 )
 
-// left, split, right are DOM elements
-// uses requires https://github.com/lingtalfi/simpledrag.git
-func SetupHSplitter(left, split, right *js.Object, cb func()) {
-	split.Call("sdrag", func(el *js.Object, px, sx, py, sy int, fix *js.Object) {
-		fix.Set("skipX", true)
+// leftPane, splitter, rightPane are DOM elements
+func SetupHSplitter(leftPane, splitter, rightPane *js.Object, cb func()) {
+	var dragging bool
+	var dx int
 
-		// The script below constrains the target to move horizontally between a left and a right virtual boundaries.
-		// - the left limit is positioned at 10% of the screen width
-		// - the right limit is positioned at 90% of the screen width
+	move := func(e *js.Object) {
 		const leftLimit = 10
 		const rightLimit = 90
 
+		px := e.Get("pageX").Int()
 		iw := js.Global.Get("innerWidth").Int()
-		if px < iw*leftLimit/100 {
-			px = iw * leftLimit / 100
-			fix.Set("px", px)
-		}
-		if px > iw*rightLimit/100 {
-			px = iw * rightLimit / 100
-			fix.Set("px", px)
-		}
 
-		var cur = float64(px) / float64(iw) * 100
-		if cur < 0 {
-			cur = 0
+		var cur = float64(px-dx) / float64(iw) * 100
+		if cur < leftLimit {
+			cur = leftLimit
 		}
-		if cur > float64(iw) {
-			cur = float64(iw)
+		if cur > rightLimit {
+			cur = rightLimit
 		}
 
 		//right := (100 - cur - 2)
-		ls := left.Get("style")
+		ls := leftPane.Get("style")
 		ls.Set("width", fmt.Sprintf("%f%%", cur))
 
 		cb()
+	}
 
-	}, nil, "horizontal")
+	startDragging := func(e *js.Object) {
+		dragging = true
+		left := splitter.Call("getBoundingClientRect").Get("left").Int()
+		cx := e.Get("clientX").Int()
+		dx = cx - left
+		js.Global.Call("addEventListener", "mousemove", move)
+	}
+
+	splitter.Call("addEventListener", "mousedown", startDragging)
+	js.Global.Call("addEventListener", "mouseup", func(e *js.Object) {
+		if dragging {
+			dragging = false
+			js.Global.Call("removeEventListener", "mousemove", move)
+		}
+	})
 }
