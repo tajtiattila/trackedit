@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
+	"strings"
 
 	"github.com/gopherjs/gopherjs/js"
 	"github.com/gopherjs/jquery"
@@ -41,7 +43,11 @@ func main() {
 				js.Global.Get("google").Get("maps").Get("event").Call("trigger", mapui, "resize")
 			})
 
-		go showTrack(doc.GetElementByID("sidebar-content"), "/api/track")
+		sbc := doc.GetElementByID("sidebar-content")
+
+		go showTrack(sbc, "/api/track")
+
+		doc.Call("addEventListener", "mousedown", clickTrackPt)
 	})
 }
 
@@ -63,9 +69,10 @@ func showTrack(el *js.Object, u string) {
 		return
 	}
 
+	track = t
 	for i, p := range t {
 		div := doc.CreateElement("div", js.M{
-			"id":        fmt.Sprintf("trkpt%d", i),
+			"id":        fmt.Sprintf("trkpt-%d", i),
 			"className": "trkpt",
 		}, p.Time.Local().Format("2006-01-02 15:04:05"))
 		el.Call("appendChild", div)
@@ -82,4 +89,149 @@ func fetchTrack(u string) (types.Track, error) {
 	var t types.Track
 	err = json.NewDecoder(resp.Body).Decode(&t)
 	return t, err
+}
+
+type MarkerSet struct {
+	mapui *js.Object
+	o     []*js.Object
+}
+
+func (s *MarkerSet) Clear() {
+	for _, o := range s.o {
+		o.Call("setMap", nil)
+	}
+	s.o = s.o[:0]
+}
+
+func (s *MarkerSet) Add(o *js.Object) {
+	s.o = append(s.o, o)
+}
+
+func (s *MarkerSet) SimpleMarker(pt types.Point, title string) {
+	gm := js.Global.Get("google").Get("maps")
+	m := js.M{
+		"position": ptLatLong(pt),
+		"map":      s.mapui,
+	}
+	if title != "" {
+		m["title"] = title
+	}
+	s.Add(gm.Get("Marker").New(m))
+}
+
+func (s *MarkerSet) Marker(attrs js.M, pt types.Point) {
+	gm := js.Global.Get("google").Get("maps")
+	m := js.M{
+		"position": ptLatLong(pt),
+		"map":      s.mapui,
+	}
+	for k, v := range attrs {
+		m[k] = v
+	}
+	s.Add(gm.Get("Marker").New(m))
+}
+
+func (s *MarkerSet) Polyline(attrs js.M, line ...types.Point) {
+	gm := js.Global.Get("google").Get("maps")
+	pts := make([]js.M, len(line))
+	for i, p := range line {
+		pts[i] = ptLatLong(p)
+	}
+	m := js.M{
+		"path": pts,
+		"map":  s.mapui,
+	}
+	for k, v := range attrs {
+		m[k] = v
+	}
+	s.Add(gm.Get("Polyline").New(m))
+}
+
+var clickMarker MarkerSet
+
+func clickTrackPt(e *js.Object) {
+	const pfx = "trkpt-"
+
+	clickMarker.mapui = mapui
+
+	node := e.Get("target")
+	for node != nil && !strings.HasPrefix(node.Get("id").String(), pfx) {
+		node = node.Get("parentNode")
+	}
+
+	if node == nil {
+		return
+	}
+
+	i, err := strconv.Atoi(strings.TrimPrefix(node.Get("id").String(), pfx))
+	if err != nil {
+		println(err)
+		return
+	}
+
+	clickMarker.Clear()
+
+	circleSymbol := js.M{
+		"path":          "M 0 0 m -1 0 a 1 1 0 1,0 2 0 a 1 1 0 1, 0 -2 0",
+		"scale":         5,
+		"fillColor":     "#f00",
+		"fillOpacity":   1,
+		"strokeOpacity": 0,
+	}
+	clickMarker.Marker(js.M{
+		"icon": circleSymbol,
+	}, track[i])
+
+	if i > 0 {
+		symbolIncoming := js.M{
+			"path":        "M -3,-3 0,3 3,-3 z",
+			"fillOpacity": 1,
+		}
+		a := js.M{
+			"icons": []js.M{
+				{
+					"icon":   symbolIncoming,
+					"offset": "20px",
+				},
+			},
+		}
+		clickMarker.Polyline(a, track[i], track[i-1])
+	}
+
+	if i < len(track)-1 {
+		symbolOutgoing := js.M{
+			"path":          "M -3,3 0,-3 3,3 z",
+			"strokeWeight":  2,
+			"strokeOpacity": 1,
+		}
+		lineSymbol := js.M{
+			"path":          "M 0,-1 0,1",
+			"strokeOpacity": 1,
+			"scale":         4,
+		}
+		a := js.M{
+			"icons": []js.M{
+				{
+					"icon":   symbolOutgoing,
+					"offset": "20px",
+				},
+				{
+					"icon":   lineSymbol,
+					"offset": 0,
+					"repeat": "20px",
+				},
+			},
+			"strokeOpacity": 0,
+		}
+		clickMarker.Polyline(a, track[i], track[i+1])
+	}
+
+	mapui.Call("panTo", ptLatLong(track[i]))
+}
+
+func ptLatLong(p types.Point) js.M {
+	return js.M{
+		"lat": p.Lat,
+		"lng": p.Long,
+	}
 }
