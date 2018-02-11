@@ -43,3 +43,19 @@ body {
    * element that contains the map. */
   height: 100%;
 }
+
+div.trkpt {
+  display: grid;
+  grid-template-columns: max-content 4em auto;
+}
+
+div.trkpt > div.timestamp {
+  grid-column: 1;
+  margin-right: 0.5em;
+  flex-grow: 0;
+}
+
+div.trkpt > div.distance {
+  grid-column: 2;
+  text-align: right;
+}

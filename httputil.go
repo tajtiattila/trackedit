@@ -94,6 +94,7 @@ type templateDir struct {
 }
 
 func (td *templateDir) Open(name string) (http.File, error) {
+	log.Println("templateDir:", name)
 	f, err := http.Dir(td.root).Open(name)
 	if err != nil {
 		return nil, err

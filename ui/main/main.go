@@ -9,6 +9,7 @@ import (
 
 	"github.com/gopherjs/gopherjs/js"
 	"github.com/gopherjs/jquery"
+	"github.com/tajtiattila/track/geomath"
 	"github.com/tajtiattila/trackedit/gmap"
 	"github.com/tajtiattila/trackedit/types"
 )
@@ -71,12 +72,38 @@ func showTrack(el *js.Object, u string) {
 
 	track = t
 	for i, p := range t {
+		var dist string
+		if i == 0 {
+			dist = "start"
+		} else {
+			a, b := t[i-1], t[i]
+			a3 := geomath.Pt3(a.Lat, a.Long)
+			b3 := geomath.Pt3(b.Lat, b.Long)
+			dist = distm(a3.Sub(b3).Mag())
+		}
 		div := doc.CreateElement("div", js.M{
 			"id":        fmt.Sprintf("trkpt-%d", i),
 			"className": "trkpt",
-		}, p.Time.Local().Format("2006-01-02 15:04:05"))
+		}, "")
+		div.Call("appendChild", doc.CreateElement("div", js.M{
+			"className": "timestamp",
+		}, p.Time.Local().Format("2006-01-02 15:04:05")))
+		div.Call("appendChild", doc.CreateElement("div", js.M{
+			"className": "distance",
+		}, dist))
 		el.Call("appendChild", div)
 	}
+}
+
+func distm(v float64) string {
+	if v < 1000 {
+		return fmt.Sprintf("%.0f m", v)
+	}
+	v /= 1000
+	if v < 10 {
+		return fmt.Sprintf("%.1f km", v)
+	}
+	return fmt.Sprintf("%.0f km", v)
 }
 
 func fetchTrack(u string) (types.Track, error) {
