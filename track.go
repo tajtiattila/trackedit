@@ -1,9 +1,6 @@
 package main
 
 import (
-	"encoding/json"
-	"log"
-	"net/http"
 	"os"
 
 	"github.com/tajtiattila/track/trackio"
@@ -41,13 +38,4 @@ func dedupTrack(t trackio.Track) trackio.Track {
 		}
 	}
 	return t[:i]
-}
-
-func serveTrack(t types.Track) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		err := json.NewEncoder(w).Encode(t)
-		if err != nil {
-			log.Println(err)
-		}
-	})
 }

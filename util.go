@@ -17,7 +17,7 @@ func modulePath() string {
 }
 
 func stripGoSrcPath(path string) string {
-	return stripGoPathSub(path, "src")
+	return filepath.ToSlash(stripGoPathSub(path, "src"))
 }
 
 func stripGoPathSub(path, sub string) string {

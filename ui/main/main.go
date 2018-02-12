@@ -4,8 +4,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gopherjs/gopherjs/js"
 	"github.com/gopherjs/jquery"
@@ -58,11 +60,11 @@ var mapStyles = `
   [{"featureType":"landscape","stylers":[{"saturation":-100},{"lightness":65},{"visibility":"on"}]},{"featureType":"poi","stylers":[{"saturation":-100},{"lightness":51},{"visibility":"simplified"}]},{"featureType":"road.highway","stylers":[{"saturation":-100},{"visibility":"simplified"}]},{"featureType":"road.arterial","stylers":[{"saturation":-100},{"lightness":30},{"visibility":"on"}]},{"featureType":"road.local","stylers":[{"saturation":-100},{"lightness":40},{"visibility":"on"}]},{"featureType":"transit","stylers":[{"saturation":-100},{"visibility":"simplified"}]},{"featureType":"administrative.province","stylers":[{"visibility":"off"}]},{"featureType":"water","elementType":"labels","stylers":[{"visibility":"on"},{"lightness":-25},{"saturation":-100}]},{"featureType":"water","elementType":"geometry","stylers":[{"hue":"#ffff00"},{"lightness":-25},{"saturation":-97}]}]
 `
 
-var track types.Track
+var appData types.AppData
 
 func showTrack(el *js.Object, u string) {
 	removeChildren(el)
-	t, err := fetchTrack(u)
+	ad, err := fetchAppData(u)
 	if err != nil {
 		el.Call("appendChild", doc.CreateElement("div", js.M{
 			"className": "error",
@@ -70,29 +72,78 @@ func showTrack(el *js.Object, u string) {
 		return
 	}
 
-	track = t
-	for i, p := range t {
-		var dist string
-		if i == 0 {
-			dist = "start"
-		} else {
-			a, b := t[i-1], t[i]
-			a3 := geomath.Pt3(a.Lat, a.Long)
-			b3 := geomath.Pt3(b.Lat, b.Long)
-			dist = distm(a3.Sub(b3).Mag())
-		}
-		div := doc.CreateElement("div", js.M{
-			"id":        fmt.Sprintf("trkpt-%d", i),
-			"className": "trkpt",
-		}, "")
-		div.Call("appendChild", doc.CreateElement("div", js.M{
-			"className": "timestamp",
-		}, p.Time.Local().Format("2006-01-02 15:04:05")))
-		div.Call("appendChild", doc.CreateElement("div", js.M{
-			"className": "distance",
-		}, dist))
-		el.Call("appendChild", div)
+	appData = ad
+
+	ents := make([]entry, 0, len(appData.Track)+len(appData.Image))
+	for i, p := range appData.Track {
+		ents = append(ents, entry{
+			t: p.Time,
+			v: p,
+			i: i,
+		})
 	}
+	for i, im := range appData.Image {
+		ents = append(ents, entry{
+			t: im.Time,
+			v: im,
+			i: i,
+		})
+	}
+
+	sort.Slice(ents, func(i, j int) bool {
+		return ents[i].t.Before(ents[j].t)
+	})
+
+	var last types.Point
+	lastok := false
+	for _, e := range ents {
+		switch x := e.v.(type) {
+
+		case types.Point:
+			var dist string
+			if lastok {
+				a3 := geomath.Pt3(last.Lat, last.Long)
+				b3 := geomath.Pt3(x.Lat, x.Long)
+				dist = distm(a3.Sub(b3).Mag())
+			} else {
+				dist = "start"
+			}
+			last, lastok = x, true
+			div := doc.CreateElement("div", js.M{
+				"id":        fmt.Sprintf("trkpt-%d", e.i),
+				"className": "trkpt",
+			})
+			div.Call("appendChild", doc.CreateElement("div", js.M{
+				"className": "timestamp",
+			}, x.Time.Local().Format("2006-01-02 15:04:05")))
+			div.Call("appendChild", doc.CreateElement("div", js.M{
+				"className": "distance",
+			}, dist))
+			el.Call("appendChild", div)
+
+		case types.Image:
+			div := doc.CreateElement("div", js.M{
+				"className": "photowrap",
+			})
+			div.Call("appendChild", doc.CreateElement("div", js.M{
+				"className": "timestamp",
+			}, x.Time.Local().Format("2006-01-02 15:04:05")))
+			p := doc.CreateElement("div", js.M{
+				"className": "photo",
+			})
+			p.Call("appendChild", doc.CreateElement("img", js.M{
+				"src": x.Thumb,
+			}))
+			div.Call("appendChild", p)
+			el.Call("appendChild", div)
+		}
+	}
+}
+
+type entry struct {
+	t time.Time
+	v interface{} // types.Track or types.Image
+	i int         // index into appData.Track or appData.Image
 }
 
 func distm(v float64) string {
@@ -106,16 +157,16 @@ func distm(v float64) string {
 	return fmt.Sprintf("%.0f km", v)
 }
 
-func fetchTrack(u string) (types.Track, error) {
-	resp, err := http.Get("/api/track")
+func fetchAppData(u string) (types.AppData, error) {
+	resp, err := http.Get("/api/appdata")
 	if err != nil {
-		return nil, err
+		return types.AppData{}, err
 	}
 	defer resp.Body.Close()
 
-	var t types.Track
-	err = json.NewDecoder(resp.Body).Decode(&t)
-	return t, err
+	var d types.AppData
+	err = json.NewDecoder(resp.Body).Decode(&d)
+	return d, err
 }
 
 type MarkerSet struct {
@@ -195,6 +246,8 @@ func clickTrackPt(e *js.Object) {
 		println(err)
 		return
 	}
+
+	track := appData.Track
 
 	clickMarker.Clear()
 
